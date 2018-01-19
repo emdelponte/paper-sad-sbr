@@ -1,0 +1,713 @@
+% Analysis code
+
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(viridis)
+library(ggthemes)
+library(lme4)
+library(cowplot)
+library(broom)
+library(agricolae)
+library(lattice)
+library(emmeans)
+library(car)
+library(scales)
+theme_set(theme_minimal())
+```
+
+## Data preparation
+
+The data was organized in a binary `xlsx` file with four spreadsheets, each contaning data from a single experiment - each consisted of severity assessment on 50 leaflets by a group of 20 raters with no previous experience in visual severity assessment of soybean rust. 
+
+We will prepare a single `csv` file after we import and combine data from all spreadsheets. We will use `read_excel` function of the `readxl` package. The `here` function is used to indicate the folder in which the `xlsx` files are stored. It is a very handy function for reproducibility purposes. We finally use the `write_csv` function to store the data in a non-binary (text) file. We should first load to the `tidyverse` package which is a [collection of packages](https://www.tidyverse.org/) we will use here.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(readxl)
+library(here)
+old_noaid <- read_excel(here("data", "all-data.xlsx"), 1)
+old_aid <- read_excel(here("data", "all-data.xlsx"), 2)
+new_noaid <- read_excel(here("data", "all-data.xlsx"), 3)
+new_aid <- read_excel(here("data", "all-data.xlsx"), 4)
+sad <- rbind(old_noaid, old_aid, new_noaid, new_aid)
+write_csv(sad, here("data", "data-sad.csv"))
+```
+
+## Data import and reshape
+
+Now that we have the `csv` file, let's import it and create a data frame called `sad_wide`. We use the suffix `wide" because the responses (estimates) are not in a single but in multiple columns, each representing a rater. 
+
+```{r message=FALSE, warning=FALSE}
+sad_wide <- read_csv(here("data", "data-sad.csv"))
+sad_wide
+```
+
+We need to reshape this data frame to the tidy format, where all responses are in a single column which facilitates further work within the `tidyverse`. For this, we use the `gather` function and create the `rater` and the `estimate` variables to accomodate data from the multiple columns. We should indicate the columns to gather, which are 4 to 23 and this way the first three columns are kept as we want: method, leaf and actual severity.
+
+```{r}
+sad <- sad_wide %>%
+  gather(rater, estimate, 4:23) %>%
+  mutate(rater = as.numeric(rater))
+sad
+```
+
+## Exploratory analysis
+
+### Boxplots 
+
+Let's produce boxplots for the error of the estimates for each assessment (n = 20 raters * 50 estimates). It is interesting to see that the two unaided assessment are quite similar in terms of distribution of the errors, although using a different set of random raters. The general trend is to overestimate severity. For the assessments, the median of the error was below zero for the old SAD and around zero for the New SAD.
+
+
+```{r}
+sad %>%
+  ggplot(aes(method, estimate - actual)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = T)
+```
+
+### Density plots of error
+
+Density plots are also an interesting way to visualize the distribution of the error of the estimates. We confirm visually that density of the two unaided estimates are quite similar. 
+
+```{r}
+
+library(ggridges)
+sad %>%
+  ggplot(aes(estimate - actual, method, fill = method)) +
+  geom_density_ridges(scale = 4, alpha = 0.7) +
+  theme_ridges() +
+  geom_vline(xintercept = 0) +
+  theme(legend.position = "none") +
+  scale_fill_viridis(discrete = TRUE)
+```
+
+Let's have a look at the estimates and the error of the estimates for each of the fifty leaves. We add a black line for the actual values and points and smoothed lines colored by each of the four assessments. 
+
+First the absolue value.
+
+```{r}
+sad %>%
+  ggplot(aes(leaf, actual, color = method)) +
+  # geom_point(color = "black", size = 0.5)+
+  geom_line(aes(leaf, actual, color = "actual"),size = 1.5) +
+  geom_point(aes(leaf, estimate), size = 1.5, alpha = 0.1) +
+  geom_smooth(aes(leaf, estimate), se = F) +
+  # facet_wrap(~ rater)+
+  theme_few() +
+  #scale_color_viridis(discrete = TRUE) +
+  labs(y = "Value", x = "Leaf")
+```
+
+Error of the estimates
+
+```{r}
+sad %>%
+  ggplot(aes(leaf, estimate - actual, color = method)) +
+  # geom_point(color = "black", size = 0.5)+
+  # geom_line(color = "black")+
+  geom_hline(yintercept = 0) +
+  geom_point(aes(leaf, estimate - actual), size = 0.5, alpha = 0.1) +
+  geom_smooth(aes(leaf, estimate - actual), se = F) +
+  # facet_wrap(~ rater)+
+  theme_few() +
+  #scale_color_viridis(discrete = TRUE) +
+  labs(y = "Value", x = "Leaf")
+```
+
+Now we can dig more into the data and plot by rater. It is important to note the the raters are not the same for the new and old SAD, and so the assessments are independent.
+
+```{r}
+sad %>%
+  ggplot(aes(leaf, actual, color = method)) +
+  # geom_point(color = "black", size = 0.5)+
+  geom_line(color = "black") +
+  geom_point(aes(leaf, estimate), size = 1, alpha = 0.2) +
+  geom_smooth(aes(leaf, estimate), se = F) +
+  facet_wrap(~ rater) +
+  theme_few() +
+  #scale_color_viridis(discrete = TRUE) +
+  labs(y = "Value", x = "Leaf")
+```
+
+And now for the error of the estimates. 
+
+```{r}
+sad %>%
+  ggplot(aes(leaf, estimate - actual, color = method)) +
+  # geom_point(color = "black", size = 0.5)+
+  # geom_line(color = "black")+
+  geom_hline(yintercept = 0) +
+  geom_point(aes(leaf, estimate - actual), size = 0.5, alpha = 0.1) +
+  geom_smooth(aes(leaf, estimate - actual), se = F) +
+  facet_wrap(~ rater) +
+  theme_few() +
+  #scale_color_viridis(discrete = TRUE) +
+  labs(y = "Value", x = "Leaf")
+```
+
+In the plots above we showed the error of the estimates by leaf, and although we know that severity was incremental, we had no information on this values. Hence, we can make another plot with severity on the x axis and identify ranges of actual severity with higher errors and compare the two SADs.
+
+
+```{r}
+sad %>%
+  ggplot(aes(actual, estimate - actual, color = method)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(color = "red", se = F) +
+  facet_wrap(~method) +
+  #scale_color_viridis(discrete = TRUE) +
+  geom_hline(yintercept = 0)
+```
+
+Let's produce the same scatter and error plots but by assessment and rater
+
+### Unaided old
+
+#### Scatter plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>% # create error variable
+  filter(method == "old_noaid") %>% # filter the unaided estimates
+  ggplot(aes(actual, estimate)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(alpha = 0.5) +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+#### Error plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>%
+  filter(method == "old_noaid") %>%
+  ggplot(aes(actual, error)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  geom_point(alpha = 0.5) +
+  geom_smooth(span = 0.75, size = 0.5, color = "black") +
+  ylim(-50, 50) +
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+
+### Unaided 
+
+#### Scatter plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>% # create error variable
+  filter(method == "new_noaid") %>% # filter the unaided estimates
+  ggplot(aes(actual, estimate)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(alpha = 0.5) +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+#### Error plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>%
+  filter(method == "new_noaid") %>%
+  ggplot(aes(actual, error)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  geom_point(alpha = 0.75) +
+  geom_smooth(span = 0.75, size = 0.5, color = "black") +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+
+### Aided old
+
+#### Scatter plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>% # create error variable
+  filter(method == "old_aid") %>% # filter the unaided estimates
+  ggplot(aes(actual, estimate)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(alpha = 0.5) +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+#### Error plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>%
+  filter(method == "old_aid") %>%
+  ggplot(aes(actual, error)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  geom_point(alpha = 0.75) +
+  geom_smooth(span = 0.75, size = 0.5, color = "black") +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+
+
+#### Scatter plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>% # create error variable
+  filter(method == "new_aid") %>% # filter the unaided estimates
+  ggplot(aes(actual, estimate)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(alpha = 0.5) +
+
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+#### Error plot
+
+```{r, message=FALSE, warning=FALSE}
+sad %>%
+  mutate(error = estimate - actual) %>%
+  filter(method == "new_aid") %>%
+  ggplot(aes(actual, error)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  geom_point(alpha = 0.75) +
+  geom_smooth(span = 0.75, size = 0.5, color = "black") +
+
+  ylim(-50, 50) +
+  facet_wrap(~ rater, ncol = 5) +
+  xlim(0, 100)
+```
+
+
+
+## Lin's concordance 
+
+
+```{r message=FALSE, warning=FALSE}
+library(purrr)
+library(epiR)
+```
+
+
+### Unaided new
+
+```{r message=FALSE, warning=FALSE}
+sad_noaid_new <- sad %>%
+  group_by(rater) %>%
+  filter(method == "new_noaid")
+ccc_noaid_new <- by(sad_noaid_new, sad_noaid_new$rater, function(sad_noaid_new)
+  epi.ccc(sad_noaid_new$estimate, sad_noaid_new$actual, ci = "z-transform", conf.level = 0.95))
+```
+
+```{r}
+noaid_new_pc <- ccc_noaid_new %>%
+  map_df("rho.c") %>%
+  mutate(rater = 1:20) %>%
+  mutate(rater = as.character(rater)) %>%
+  select(4, 1)
+
+noaid_new_Cb <- ccc_noaid_new %>%
+  map_df("C.b") %>%
+  gather(rater, Cb)
+
+noaid_new_l.shift <- ccc_noaid_new %>%
+  map_df("l.shift") %>%
+  gather(rater, l.shift)
+
+noaid_new_s.shift <- ccc_noaid_new %>%
+  map_df("s.shift") %>%
+  gather(rater, s.shift)
+
+noaid_new_ccc <- left_join(noaid_new_l.shift, noaid_new_s.shift, by = "rater") %>%
+  left_join(., noaid_new_Cb, by = "rater") %>%
+  left_join(., noaid_new_pc, by = "rater") %>%
+  mutate(r = est * Cb) %>%
+  mutate(rater = as.numeric(rater)) %>%
+  mutate(method = "new_noaid")
+```
+
+
+### Unaided old
+
+```{r}
+sad_noaid_old <- sad %>%
+  group_by(rater) %>%
+  filter(method == "old_noaid")
+ccc_noaid_old <- by(sad_noaid_old, sad_noaid_old$rater, function(sad_noaid_old)
+  epi.ccc(sad_noaid_old$estimate, sad_noaid_old$actual, ci = "z-transform", conf.level = 0.95))
+```
+
+```{r}
+noaid_old_pc <- ccc_noaid_old %>%
+  map_df("rho.c") %>%
+  mutate(rater = 1:20) %>%
+  mutate(rater = as.character(rater)) %>%
+  select(4, 1)
+
+noaid_old_Cb <- ccc_noaid_old %>%
+  map_df("C.b") %>%
+  gather(rater, Cb)
+
+noaid_old_l.shift <- ccc_noaid_old %>%
+  map_df("l.shift") %>%
+  gather(rater, l.shift)
+
+noaid_old_s.shift <- ccc_noaid_old %>%
+  map_df("s.shift") %>%
+  gather(rater, s.shift)
+
+noaid_old_ccc <- left_join(noaid_old_l.shift, noaid_old_s.shift, by = "rater") %>%
+  left_join(., noaid_old_Cb, by = "rater") %>%
+  left_join(., noaid_old_pc, by = "rater") %>%
+  mutate(r = est * Cb) %>%
+  mutate(rater = as.numeric(rater)) %>%
+  mutate(method = "old_noaid")
+```
+
+
+### Aided old
+
+```{r}
+sad_aid_old <- sad %>%
+  group_by(rater) %>%
+  filter(method == "old_aid")
+ccc_aid_old <- by(sad_aid_old, sad_aid_old$rater, function(sad_aid_old)
+  epi.ccc(sad_aid_old$estimate, sad_aid_old$actual, ci = "z-transform", conf.level = 0.95))
+```
+
+
+```{r}
+aid_old_pc <- ccc_aid_old %>%
+  map_df("rho.c") %>%
+  mutate(rater = 1:20) %>%
+  mutate(rater = as.character(rater)) %>%
+  select(4, 1)
+
+aid_old_Cb <- ccc_aid_old %>%
+  map_df("C.b") %>%
+  gather(rater, Cb)
+
+aid_old_l.shift <- ccc_aid_old %>%
+  map_df("l.shift") %>%
+  gather(rater, l.shift)
+
+aid_old_s.shift <- ccc_aid_old %>%
+  map_df("s.shift") %>%
+  gather(rater, s.shift)
+
+aid_old_ccc <- left_join(aid_old_l.shift, aid_old_s.shift, by = "rater") %>%
+  left_join(., aid_old_Cb, by = "rater") %>%
+  left_join(., aid_old_pc, by = "rater") %>%
+  mutate(r = est * Cb) %>%
+  mutate(rater = as.numeric(rater)) %>%
+  mutate(method = "old_aid")
+```
+
+
+### Aided new
+
+```{r}
+sad_aid_new <- sad %>%
+  group_by(rater) %>%
+  filter(method == "new_aid")
+ccc_aid_new <- by(sad_aid_new, sad_aid_new$rater, function(sad_aid_new)
+  epi.ccc(sad_aid_new$estimate, sad_aid_new$actual, ci = "z-transform", conf.level = 0.95))
+```
+
+
+```{r}
+aid_new_pc <- ccc_aid_new %>%
+  map_df("rho.c") %>%
+  mutate(rater = 1:20) %>%
+  mutate(rater = as.character(rater)) %>%
+  select(4, 1)
+
+aid_new_Cb <- ccc_aid_new %>%
+  map_df("C.b") %>%
+  gather(rater, Cb)
+
+aid_new_l.shift <- ccc_aid_new %>%
+  map_df("l.shift") %>%
+  gather(rater, l.shift)
+
+aid_new_s.shift <- ccc_aid_new %>%
+  map_df("s.shift") %>%
+  gather(rater, s.shift)
+
+aid_new_ccc <- left_join(aid_new_l.shift, aid_new_s.shift, by = "rater") %>%
+  left_join(., aid_new_Cb, by = "rater") %>%
+  left_join(., aid_new_pc, by = "rater") %>%
+  mutate(r = est * Cb) %>%
+  mutate(rater = as.numeric(rater)) %>%
+  mutate(method = "new_aid")
+```
+
+
+Combine all estimates in a single dataframe and reshape to long format
+
+```{r}
+ccc_all <- rbind(aid_new_ccc, aid_old_ccc, noaid_new_ccc, noaid_old_ccc)
+ccc <- ccc_all %>%
+  gather(stat, coef, 2:6) %>% 
+  unite(rater_method, rater, method, remove = FALSE) %>% 
+  filter(rater_method != "18_new_noaid") %>% 
+  filter(rater_method != "7_old_aid") %>% 
+  separate(method, c("sad", "assessment"), remove=FALSE)
+  
+
+
+```
+
+
+Visualize CCC statistics
+
+Lin's concordance coefficient
+
+```{r}
+pc <- ccc %>%
+  filter(stat == "est") %>%
+  ggplot(aes(assessment, coef, fill = sad)) +
+  geom_boxplot() +
+  labs(y = "LCC")
+pc
+```
+
+
+
+```{r}
+Cb <- ccc %>%
+  filter(stat == "Cb") %>%
+ ggplot(aes(assessment, coef, fill = sad)) +
+  geom_boxplot() +
+  labs(y = "Cb")
+Cb
+```
+
+
+Correlation coefficient
+
+```{r}
+r <- ccc %>%
+  filter(stat == "r") %>%
+ ggplot(aes(assessment, coef, fill = sad)) +
+  geom_boxplot() +
+  labs(y = "Pearson's r")
+r
+```
+
+
+## Linear mixed model
+
+We will estimate the means and compare them using `lsmeans` package.
+
+### Reshape data to wide 
+
+```{r}
+
+ccc2 <- ccc %>%
+  filter(stat != "ccc.lower") %>%
+  filter(stat != "ccc.upper") %>%
+  spread(stat, coef) 
+```
+
+### Concordance coefficiente
+
+```{r}
+# pc
+mix_pc <- lmer(est ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(lsmeans)
+mean_pc <- lsmeans(mix_pc, ~ method)
+df_pc <- cld(mean_pc)
+df_pc <- df_pc %>%
+  select(method, lsmean, .group) %>%
+  mutate(stat = "pc")
+
+```
+
+### Correlation coefficient
+
+```{r}
+# r
+mix_r <- lmer(r ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(lsmeans)
+mean_r <- lsmeans(mix_r, ~ method)
+df_r <- cld(mean_r)
+df_r <- df_r %>%
+  select(method, lsmean, .group) %>%
+  mutate(stat = "r")
+
+```
+
+
+### Bias coefficient
+
+```{r}
+
+
+# cb
+mix_cb <- lmer(Cb ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(lsmeans)
+mean_cb <- lsmeans(mix_cb, ~ method)
+df_cb <- cld(mean_cb)
+df_cb <- df_cb %>%
+  select(method, lsmean, .group) %>%
+  mutate(stat = "Cb")
+
+```
+
+
+### location-shift
+
+```{r}
+
+
+# ls
+mix_ls <- lmer(l.shift ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(lsmeans)
+mean_ls <- lsmeans(mix_ls, ~ method)
+df_ls <- cld(mean_ls)
+df_ls <- df_ls %>%
+  select(method, lsmean, .group) %>%
+  mutate(stat = "ls")
+
+```
+
+
+### scale-shift
+
+```{r}
+
+
+# ss
+mix_ss <- lmer(s.shift ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(lsmeans)
+mean_ss <- lsmeans(mix_ss, ~ method)
+df_ss <- cld(mean_ss)
+df_ss <- df_ss %>%
+  select(method, lsmean, .group) %>%
+  mutate(stat = "ss")
+
+```
+
+
+### Combine in a table
+
+```{r}
+
+df_all <- rbind(df_pc, df_r, df_cb, df_ss, df_ls) %>%
+  mutate(lsmean = round(as.numeric(lsmean), 2))
+
+
+table1 <- df_all %>%
+  unite(lsmean2, lsmean, .group, sep = " ") %>%
+  spread(stat, lsmean2)
+
+library(knitr)
+kable(table1)
+```
+
+
+## Interrater reliability
+
+Two methods were used here. The overall concordance coefficient and the intra-class correlation coefficient.
+
+### No aid old
+
+
+```{r}
+library(irr)
+sad_noaid_old2 <- sad_noaid_old %>% 
+  spread(rater, estimate) %>% 
+  select(4:23) %>%
+  data.matrix()
+sad_occc_noaid_old <- epi.occc(sad_noaid_old2, na.rm = FALSE, pairs = TRUE)
+sad_icc_noaid_old <- icc(sad_noaid_old2, model = "twoway", unit = "single", type = "consistency")
+sad_occc_noaid_old$occc
+sad_icc_noaid_old$value
+
+```
+
+
+### No aid new
+
+
+```{r}
+library(irr)
+sad_noaid_new2 <- sad_noaid_new %>% 
+  spread(rater, estimate) %>% 
+  select(4:23) %>%
+  data.matrix()
+sad_occc_noaid_new <- epi.occc(sad_noaid_new2, na.rm = FALSE, pairs = TRUE)
+sad_icc_noaid_new <- icc(sad_noaid_new2, model = "twoway", unit = "single", type = "consistency")
+sad_occc_noaid_new$occc
+sad_icc_noaid_new$value
+
+```
+
+
+
+
+
+### Aid old
+
+```{r}
+library(irr)
+sad_aid_old2 <- sad_aid_old %>% 
+  spread(rater, estimate) %>% 
+  select(4:23) %>%
+  data.matrix()
+sad_occc_aid_old <- epi.occc(sad_aid_old2, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_old <- icc(sad_aid_old2, model = "twoway", unit = "single", type = "consistency")
+sad_occc_aid_old$occc
+sad_icc_aid_old$value
+
+```
+
+
+### Aid new
+
+
+```{r}
+library(irr)
+sad_aid_new2 <- sad_aid_new %>% 
+  spread(rater, estimate) %>% 
+  select(4:23) %>%
+  data.matrix()
+sad_occc_aid_new <- epi.occc(sad_aid_new2, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_new <- icc(sad_aid_new2, model = "twoway", unit = "single", type = "consistency")
+sad_occc_aid_new$occc
+sad_icc_aid_new$value
+
+```
+
+### summary table
+
+```{r}
+
+Method <- c("old_noaid", "old_aid", "new_noaid", "new_aid")
+
+OCCC <- c(sad_occc_noaid_old$occc, sad_occc_noaid_new$occc, sad_occc_aid_old$occc, sad_occc_aid_new$occc)
+
+ICC <- c(sad_icc_noaid_old$value, sad_icc_noaid_new$value, sad_icc_aid_old$value, sad_icc_aid_new$value)
+
+ICC_l <- c(sad_icc_noaid_old$lbound, sad_icc_noaid_new$lbound, sad_icc_aid_old$lbound, sad_icc_aid_new$lbound)
+
+
+ICC_u <- c(sad_icc_noaid_old$ubound, sad_icc_noaid_new$ubound, sad_icc_aid_old$ubound, sad_icc_aid_new$ubound)
+
+table2<- data.frame(Method, OCCC, ICC, ICC_l, ICC_u)
+library(knitr)
+kable(table2)
+
+
+```
+

@@ -1,0 +1,17 @@
+% Data 
+
+## Raw data 
+
+### Experimental procedures
+
+The data for this study were obtained from experiments using two independent groups of twenty raters each, totaling forty raters. Each group of raters assessed soybean rust severity in a series of fifty soybean leaves in two stepd: first without any aid and second aided by a specific standard area diagram. There was a group of twenty raters assessing severity using a published SAD and another group using a newly-developed SAD. 
+
+### Data structure
+
+The data were stored in `xlsx` files with four spreadsheets, one for each of the four assessments. In those, the data were organized in the wide format with raters in a different column. More details about how the data were prepared in the 'code' webpage. 
+
+## Download 
+
+> The data are stored in the following repositories:
+
+
