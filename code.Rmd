@@ -74,7 +74,7 @@ Density plots are also an interesting way to visualize the distribution of the e
 library(ggridges)
 sad %>%
   ggplot(aes(estimate - actual, method, fill = method)) +
-  geom_density_ridges(scale = 4, alpha = 0.7) +
+  geom_density_ridges(scale = 4, alpha = 0.9) +
   theme_ridges() +
   geom_vline(xintercept = 0) +
   theme(legend.position = "none") +
@@ -90,12 +90,12 @@ sad %>%
   ggplot(aes(leaf, actual, color = method)) +
   # geom_point(color = "black", size = 0.5)+
   geom_line(aes(leaf, actual, color = "actual"),size = 1.5) +
-  geom_point(aes(leaf, estimate), size = 1.5, alpha = 0.1) +
+  geom_point(aes(leaf, estimate), size = 1.5, alpha = 0.2) +
   geom_smooth(aes(leaf, estimate), se = F) +
   # facet_wrap(~ rater)+
   theme_few() +
-  #scale_color_viridis(discrete = TRUE) +
-  labs(y = "Value", x = "Leaf")
+  scale_color_viridis(discrete = TRUE) +
+  labs(y = "Severity (%)", x = "Leaf ordered by increasing severity (0.25 to 84%)")
 ```
 
 Error of the estimates
@@ -106,12 +106,12 @@ sad %>%
   # geom_point(color = "black", size = 0.5)+
   # geom_line(color = "black")+
   geom_hline(yintercept = 0) +
-  geom_point(aes(leaf, estimate - actual), size = 0.5, alpha = 0.1) +
+  geom_point(aes(leaf, estimate - actual), size = 1.5, alpha = 0.2) +
   geom_smooth(aes(leaf, estimate - actual), se = F) +
   # facet_wrap(~ rater)+
   theme_few() +
-  #scale_color_viridis(discrete = TRUE) +
-  labs(y = "Value", x = "Leaf")
+  scale_color_viridis(discrete = TRUE) +
+  labs(y = "Severity", x = "Leaf ordered by increasing severity (0.25 to 84%)")
 ```
 
 Now we can dig more into the data and plot by rater. It is important to note the the raters are not the same for the new and old SAD, and so the assessments are independent.
@@ -125,7 +125,7 @@ sad %>%
   geom_smooth(aes(leaf, estimate), se = F) +
   facet_wrap(~ rater) +
   theme_few() +
-  #scale_color_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
   labs(y = "Value", x = "Leaf")
 ```
 
@@ -141,7 +141,7 @@ sad %>%
   geom_smooth(aes(leaf, estimate - actual), se = F) +
   facet_wrap(~ rater) +
   theme_few() +
-  #scale_color_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
   labs(y = "Value", x = "Leaf")
 ```
 
@@ -154,7 +154,7 @@ sad %>%
   geom_point(alpha = 0.3) +
   geom_smooth(color = "red", se = F) +
   facet_wrap(~method) +
-  #scale_color_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
   geom_hline(yintercept = 0)
 ```
 
@@ -170,10 +170,12 @@ sad %>%
   filter(method == "old_noaid") %>% # filter the unaided estimates
   ggplot(aes(actual, estimate)) +
   geom_abline(slope = 1, intercept = 0) +
+  
   geom_point(alpha = 0.5) +
-
+geom_smooth(method = "lm")+
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate (non-aided)", x = "Actual severity")
 ```
 
 #### Error plot
@@ -188,7 +190,8 @@ sad %>%
   geom_smooth(span = 0.75, size = 0.5, color = "black") +
   ylim(-50, 50) +
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate error (unaided old)", x = "Actual severity")
 ```
 
 
@@ -203,9 +206,11 @@ sad %>%
   ggplot(aes(actual, estimate)) +
   geom_abline(slope = 1, intercept = 0) +
   geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm")+
 
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate (unaided new)", x = "Actual severity")
 ```
 
 #### Error plot
@@ -220,7 +225,9 @@ sad %>%
   geom_smooth(span = 0.75, size = 0.5, color = "black") +
 
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+  
+   labs(y = "Estimate error (unaided new)", x = "Actual severity")
 ```
 
 
@@ -237,7 +244,8 @@ sad %>%
   geom_point(alpha = 0.5) +
 
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate (aided old SAD)", x = "Actual severity")
 ```
 
 #### Error plot
@@ -252,11 +260,12 @@ sad %>%
   geom_smooth(span = 0.75, size = 0.5, color = "black") +
 
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate error (aided old SAD)", x = "Actual severity")
 ```
 
 
-
+### Aided new
 #### Scatter plot
 
 ```{r, message=FALSE, warning=FALSE}
@@ -268,7 +277,8 @@ sad %>%
   geom_point(alpha = 0.5) +
 
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate (aided new SAD)", x = "Actual severity")
 ```
 
 #### Error plot
@@ -284,7 +294,8 @@ sad %>%
 
   ylim(-50, 50) +
   facet_wrap(~ rater, ncol = 5) +
-  xlim(0, 100)
+  xlim(0, 100)+
+   labs(y = "Estimate error (aided new SAD)", x = "Actual severity")
 ```
 
 
@@ -305,7 +316,7 @@ sad_noaid_new <- sad %>%
   group_by(rater) %>%
   filter(method == "new_noaid")
 ccc_noaid_new <- by(sad_noaid_new, sad_noaid_new$rater, function(sad_noaid_new)
-  epi.ccc(sad_noaid_new$estimate, sad_noaid_new$actual, ci = "z-transform", conf.level = 0.95))
+  epi.ccc(sad_noaid_new$actual, sad_noaid_new$estimate,  ci = "z-transform", conf.level = 0.95))
 ```
 
 ```{r}
@@ -343,7 +354,7 @@ sad_noaid_old <- sad %>%
   group_by(rater) %>%
   filter(method == "old_noaid")
 ccc_noaid_old <- by(sad_noaid_old, sad_noaid_old$rater, function(sad_noaid_old)
-  epi.ccc(sad_noaid_old$estimate, sad_noaid_old$actual, ci = "z-transform", conf.level = 0.95))
+  epi.ccc(sad_noaid_old$actual, sad_noaid_old$estimate, ci = "z-transform", conf.level = 0.95))
 ```
 
 ```{r}
@@ -381,7 +392,7 @@ sad_aid_old <- sad %>%
   group_by(rater) %>%
   filter(method == "old_aid")
 ccc_aid_old <- by(sad_aid_old, sad_aid_old$rater, function(sad_aid_old)
-  epi.ccc(sad_aid_old$estimate, sad_aid_old$actual, ci = "z-transform", conf.level = 0.95))
+  epi.ccc(sad_aid_old$actual, sad_aid_old$estimate, ci = "z-transform", conf.level = 0.95))
 ```
 
 
@@ -420,7 +431,7 @@ sad_aid_new <- sad %>%
   group_by(rater) %>%
   filter(method == "new_aid")
 ccc_aid_new <- by(sad_aid_new, sad_aid_new$rater, function(sad_aid_new)
-  epi.ccc(sad_aid_new$estimate, sad_aid_new$actual, ci = "z-transform", conf.level = 0.95))
+  epi.ccc(sad_aid_new$actual, sad_aid_new$estimate, ci = "z-transform", conf.level = 0.95))
 ```
 
 
@@ -477,7 +488,8 @@ pc <- ccc %>%
   filter(stat == "est") %>%
   ggplot(aes(assessment, coef, fill = sad)) +
   geom_boxplot() +
-  labs(y = "LCC")
+  labs(y = "LCC")+
+  ylim(0,1)
 pc
 ```
 
@@ -519,7 +531,7 @@ ccc2 <- ccc %>%
   spread(stat, coef) 
 ```
 
-### Concordance coefficiente
+### Concordance coefficient
 
 ```{r}
 # pc
