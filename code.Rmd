@@ -1,19 +1,40 @@
-% Analysis code
+---
+title: "Analysis report: New SAD for soybean rust"
+description: |
+  A New Standard Area Diagram of Soybean Rust Improves Accuracy of Visual Severity Estimates and Optimizes Resource Use.
+author:
+  - name: "Emerson Del Ponte"
+    url: https://github.com/emedelponte
+    affiliation: UFV
+    affiliation_url: http://www.dfp.ufv.br
+  - name: "Kaique Alves"
+    url: https://github.com/AlvesKS
+    affiliation: UFV
+    affiliation_url: http://www.dfp.ufv.br
+date: "`r Sys.Date()`"
+output: distill::distill_article
+---
 
+This is a commented report for the R codes used to analyse data of the paper entitled "A New Standard Area Diagram of Soybean Rust Improves Accuracy of Visual Severity Estimates and Optimizes Resource Use".
+
+## R packages
+
+Let's load a bunch of packages that will be nused in the analysis.
 
 ```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
 library(viridis)
 library(ggthemes)
 library(lme4)
 library(cowplot)
 library(broom)
-library(agricolae)
 library(lattice)
 library(emmeans)
 library(car)
 library(scales)
 theme_set(theme_minimal())
 ```
+
 
 ## Data preparation
 
@@ -164,7 +185,7 @@ Let's produce the same scatter and error plots but by assessment and rater
 
 #### Scatter plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>% # create error variable
   filter(method == "old_noaid") %>% # filter the unaided estimates
@@ -180,7 +201,7 @@ geom_smooth(method = "lm")+
 
 #### Error plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>%
   filter(method == "old_noaid") %>%
@@ -199,7 +220,7 @@ sad %>%
 
 #### Scatter plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>% # create error variable
   filter(method == "new_noaid") %>% # filter the unaided estimates
@@ -215,7 +236,7 @@ sad %>%
 
 #### Error plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>%
   filter(method == "new_noaid") %>%
@@ -235,7 +256,7 @@ sad %>%
 
 #### Scatter plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>% # create error variable
   filter(method == "old_aid") %>% # filter the unaided estimates
@@ -250,7 +271,7 @@ sad %>%
 
 #### Error plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>%
   filter(method == "old_aid") %>%
@@ -268,7 +289,7 @@ sad %>%
 ### Aided new
 #### Scatter plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>% # create error variable
   filter(method == "new_aid") %>% # filter the unaided estimates
@@ -283,7 +304,7 @@ sad %>%
 
 #### Error plot
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 sad %>%
   mutate(error = estimate - actual) %>%
   filter(method == "new_aid") %>%
@@ -303,7 +324,7 @@ sad %>%
 ## Lin's concordance 
 
 
-```{r message=FALSE, warning=FALSE}
+```{r}
 library(purrr)
 library(epiR)
 ```
@@ -311,7 +332,7 @@ library(epiR)
 
 ### Unaided new
 
-```{r message=FALSE, warning=FALSE}
+```{r}
 sad_noaid_new <- sad %>%
   group_by(rater) %>%
   filter(method == "new_noaid")
@@ -324,7 +345,7 @@ noaid_new_pc <- ccc_noaid_new %>%
   map_df("rho.c") %>%
   mutate(rater = 1:20) %>%
   mutate(rater = as.character(rater)) %>%
-  select(4, 1)
+  dplyr::select(4, 1)
 
 noaid_new_Cb <- ccc_noaid_new %>%
   map_df("C.b") %>%
@@ -362,7 +383,7 @@ noaid_old_pc <- ccc_noaid_old %>%
   map_df("rho.c") %>%
   mutate(rater = 1:20) %>%
   mutate(rater = as.character(rater)) %>%
-  select(4, 1)
+  dplyr::select(4, 1)
 
 noaid_old_Cb <- ccc_noaid_old %>%
   map_df("C.b") %>%
@@ -401,7 +422,7 @@ aid_old_pc <- ccc_aid_old %>%
   map_df("rho.c") %>%
   mutate(rater = 1:20) %>%
   mutate(rater = as.character(rater)) %>%
-  select(4, 1)
+  dplyr::select(4, 1)
 
 aid_old_Cb <- ccc_aid_old %>%
   map_df("C.b") %>%
@@ -440,7 +461,7 @@ aid_new_pc <- ccc_aid_new %>%
   map_df("rho.c") %>%
   mutate(rater = 1:20) %>%
   mutate(rater = as.character(rater)) %>%
-  select(4, 1)
+  dplyr::select(4, 1)
 
 aid_new_Cb <- ccc_aid_new %>%
   map_df("C.b") %>%
@@ -535,44 +556,43 @@ ccc2 <- ccc %>%
 
 ```{r}
 # pc
-mix_pc <- lmer(est ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+library(multcomp)
+mix_pc <- lmer(est ~ method + (1 | rater), data = ccc2, REML = FALSE)
 library(lsmeans)
 mean_pc <- lsmeans(mix_pc, ~ method)
+
 df_pc <- cld(mean_pc)
-df_pc <- df_pc %>%
-  select(method, lsmean, .group) %>%
-  mutate(stat = "pc")
+
+df_pc
 
 ```
 
 ### Correlation coefficient
 
-```{r}
+```{r }
 # r
-mix_r <- lmer(r ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+mix_r <- lmer(r ~ method + (1 | rater), data = ccc2, REML = FALSE)
 library(lsmeans)
 mean_r <- lsmeans(mix_r, ~ method)
 df_r <- cld(mean_r)
-df_r <- df_r %>%
-  select(method, lsmean, .group) %>%
-  mutate(stat = "r")
+df_r
 
 ```
 
 
 ### Bias coefficient
 
-```{r}
+```{r }
 
 
 # cb
-mix_cb <- lmer(Cb ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
-library(lsmeans)
+mix_cb <- lmer(Cb ~ method + (1 | rater), data = ccc2, REML = FALSE)
+
 mean_cb <- lsmeans(mix_cb, ~ method)
 df_cb <- cld(mean_cb)
-df_cb <- df_cb %>%
-  select(method, lsmean, .group) %>%
-  mutate(stat = "Cb")
+
+df_cb
+
 
 ```
 
@@ -583,48 +603,39 @@ df_cb <- df_cb %>%
 
 
 # ls
-mix_ls <- lmer(l.shift ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+mix_ls <- lmer(l.shift ~ method + (1 | rater), data = ccc2, REML = FALSE)
 library(lsmeans)
 mean_ls <- lsmeans(mix_ls, ~ method)
 df_ls <- cld(mean_ls)
-df_ls <- df_ls %>%
-  select(method, lsmean, .group) %>%
-  mutate(stat = "ls")
 
+df_ls
 ```
 
 
 ### scale-shift
 
-```{r}
+```{r }
 
 
 # ss
-mix_ss <- lmer(s.shift ~ method + (1 + rater | sad), data = ccc2, REML = FALSE)
+mix_ss <- lmer(s.shift ~ method + (1  | rater), data = ccc2, REML = FALSE)
 library(lsmeans)
 mean_ss <- lsmeans(mix_ss, ~ method)
 df_ss <- cld(mean_ss)
-df_ss <- df_ss %>%
-  select(method, lsmean, .group) %>%
-  mutate(stat = "ss")
+
+df_ss
 
 ```
 
 
 ### Combine in a table
 
-```{r}
+```{r }
 
 df_all <- rbind(df_pc, df_r, df_cb, df_ss, df_ls) %>%
   mutate(lsmean = round(as.numeric(lsmean), 2))
 
-
-table1 <- df_all %>%
-  unite(lsmean2, lsmean, .group, sep = " ") %>%
-  spread(stat, lsmean2)
-
-library(knitr)
-kable(table1)
+df_all
 ```
 
 
@@ -637,9 +648,10 @@ Two methods were used here. The overall concordance coefficient and the intra-cl
 
 ```{r}
 library(irr)
+library(dplyr)
 sad_noaid_old2 <- sad_noaid_old %>% 
   spread(rater, estimate) %>% 
-  select(4:23) %>%
+  dplyr::select(4:23) %>%
   data.matrix()
 sad_occc_noaid_old <- epi.occc(sad_noaid_old2, na.rm = FALSE, pairs = TRUE)
 sad_icc_noaid_old <- icc(sad_noaid_old2, model = "twoway", unit = "single", type = "consistency")
@@ -653,10 +665,10 @@ sad_icc_noaid_old$value
 
 
 ```{r}
-library(irr)
+
 sad_noaid_new2 <- sad_noaid_new %>% 
   spread(rater, estimate) %>% 
-  select(4:23) %>%
+    dplyr::select(4:23) %>%
   data.matrix()
 sad_occc_noaid_new <- epi.occc(sad_noaid_new2, na.rm = FALSE, pairs = TRUE)
 sad_icc_noaid_new <- icc(sad_noaid_new2, model = "twoway", unit = "single", type = "consistency")
@@ -672,10 +684,10 @@ sad_icc_noaid_new$value
 ### Aid old
 
 ```{r}
-library(irr)
+
 sad_aid_old2 <- sad_aid_old %>% 
-  spread(rater, estimate) %>% 
-  select(4:23) %>%
+spread(rater, estimate) %>% 
+    dplyr::select(4:23) %>%
   data.matrix()
 sad_occc_aid_old <- epi.occc(sad_aid_old2, na.rm = FALSE, pairs = TRUE)
 sad_icc_aid_old <- icc(sad_aid_old2, model = "twoway", unit = "single", type = "consistency")
@@ -689,10 +701,10 @@ sad_icc_aid_old$value
 
 
 ```{r}
-library(irr)
+
 sad_aid_new2 <- sad_aid_new %>% 
-  spread(rater, estimate) %>% 
-  select(4:23) %>%
+spread(rater, estimate) %>% 
+  dplyr::select(4:23) %>%
   data.matrix()
 sad_occc_aid_new <- epi.occc(sad_aid_new2, na.rm = FALSE, pairs = TRUE)
 sad_icc_aid_new <- icc(sad_aid_new2, model = "twoway", unit = "single", type = "consistency")
